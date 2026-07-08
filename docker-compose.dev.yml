@@ -54,14 +54,14 @@ services:
       - internal   # NOTE: no "external" network here -> no direct internet
 
     # --- Hardening -------------------------------------------------------
-    cap_drop:
-      - ALL
-    cap_add:
-      - CHOWN
-      - SETUID
-      - SETGID
-    security_opt:
-      - no-new-privileges:true
+    # cap_drop:
+    #   - ALL
+    # cap_add:
+    #   - CHOWN
+    #   - SETUID
+    #   - SETGID
+    # security_opt:
+    #   - no-new-privileges:true
     tmpfs:
       - /tmp
 

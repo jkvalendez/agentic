@@ -4,3 +4,4 @@
 # Generate one if you don't have it yet:
 #   ssh-keygen -t ed25519 -f ~/.ssh/agent_dev_key -C "agent-dev"
 # Then paste the contents of agent_dev_key.pub below and rebuild the image.
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIM4gdyLVNewHGKfmIQ8r+Xq6vleKNH9o8iJ5jDJ1tS6p agent-dev
