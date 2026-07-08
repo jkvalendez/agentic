@@ -1,0 +1,13 @@
+title = "agent-dev gitleaks config"
+
+# Use the default gitleaks ruleset (covers AWS keys, generic API keys,
+# private keys, Slack/GitHub tokens, etc.) plus this project's own paths.
+[extend]
+useDefault = true
+
+[allowlist]
+paths = [
+  '''\.aiderignore''',
+  '''README\.md''',
+  '''\.env\.example''',
+]

@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Pre-commit hook: blocks the commit if gitleaks finds a likely secret
+# in the staged changes. Install with:
+#   cp config/hooks/pre-commit .git/hooks/pre-commit
+#   chmod +x .git/hooks/pre-commit
+
+set -euo pipefail
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "gitleaks not found -- install it (https://github.com/gitleaks/gitleaks) or run:"
+  echo "  docker run -v \$(pwd):/repo zricethezav/gitleaks:latest protect --source=/repo --staged -v"
+  exit 1
+fi
+
+gitleaks protect --staged --config="$(git rev-parse --show-toplevel)/config/hooks/gitleaks.toml" -v
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Commit blocked: gitleaks detected a possible secret in staged changes."
+  echo "   Remove it, or if it's a false positive, add it to config/hooks/gitleaks.toml allowlist."
+  exit 1
+fi

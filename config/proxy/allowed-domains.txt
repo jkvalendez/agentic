@@ -1,0 +1,10 @@
+^(.*\.)?anthropic\.com$
+^(.*\.)?api\.anthropic\.com$
+^(.*\.)?groq\.com$
+^(.*\.)?openrouter\.ai$
+^(.*\.)?generativelanguage\.googleapis\.com$
+^(.*\.)?opencode\.ai$
+# Add package registries here ONLY if the agent needs to install deps, e.g.:
+# ^(.*\.)?registry\.npmjs\.org$
+# ^(.*\.)?pypi\.org$
+# ^(.*\.)?files\.pythonhosted\.org$

@@ -1,0 +1,21 @@
+# Tell coding agents to skip these files when building context.
+# Support varies by tool:
+#   - Aider reads:      .aiderignore  (same syntax as this file)
+#   - OpenCode reads:    check current docs -- some versions honor .gitignore
+#   - Claude Code:       does not currently support a dedicated ignore file;
+#                        rely on the env-var approach + file permissions instead
+#
+# IMPORTANT: this is a courtesy signal, not a security boundary. An agent
+# that runs arbitrary shell commands can still `cat` these files unless
+# your OS file permissions or the env-var-only secret approach block it.
+
+.env
+.env.*
+*.pem
+*.key
+*.p12
+secrets/
+config/secrets*
+**/credentials.json
+**/*_rsa
+**/*_ed25519
