@@ -28,10 +28,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # --- Non-root user -------------------------------------------------------
-RUN groupadd --gid ${USER_GID} ${USERNAME} \
-    && useradd --uid ${USER_UID} --gid ${USER_GID} -m -s /bin/bash ${USERNAME} \
-    && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
-    && chmod 0440 /etc/sudoers.d/${USERNAME}
+RUN GROUP_NAME=$(getent group ${USER_GID} | cut -d: -f1 || true) \
+ && if [ -z "$GROUP_NAME" ]; then \
+      groupadd --gid ${USER_GID} ${USERNAME}; \
+      GROUP_NAME=${USERNAME}; \
+    fi \
+ && useradd --uid ${USER_UID} --gid ${GROUP_NAME} -m -s /bin/bash ${USERNAME} \
+ && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
+ && chmod 0440 /etc/sudoers.d/${USERNAME}
 
 # --- SSH server setup (key-auth only, no passwords) -----------------------
 RUN mkdir -p /var/run/sshd \
