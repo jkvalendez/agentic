@@ -1,0 +1,68 @@
+FROM ubuntu:24.04
+
+ARG USERNAME=coder
+ARG USER_UID=1000
+ARG USER_GID=1000
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# --- Base packages -----------------------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    openssh-server \
+    git \
+    curl \
+    wget \
+    ca-certificates \
+    build-essential \
+    python3 \
+    python3-pip \
+    python3-venv \
+    nodejs \
+    npm \
+    tmux \
+    neovim \
+    ripgrep \
+    fd-find \
+    unzip \
+    sudo \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Non-root user -------------------------------------------------------
+RUN groupadd --gid ${USER_GID} ${USERNAME} \
+    && useradd --uid ${USER_UID} --gid ${USER_GID} -m -s /bin/bash ${USERNAME} \
+    && echo "${USERNAME} ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/${USERNAME} \
+    && chmod 0440 /etc/sudoers.d/${USERNAME}
+
+# --- SSH server setup (key-auth only, no passwords) -----------------------
+RUN mkdir -p /var/run/sshd \
+    && sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config \
+    && sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config \
+    && sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+
+USER ${USERNAME}
+WORKDIR /home/${USERNAME}
+
+# Authorized key is injected at build time via config/authorized_keys
+RUN mkdir -p /home/${USERNAME}/.ssh \
+    && chmod 700 /home/${USERNAME}/.ssh
+COPY --chown=${USERNAME}:${USERNAME} config/authorized_keys /home/${USERNAME}/.ssh/authorized_keys
+RUN chmod 600 /home/${USERNAME}/.ssh/authorized_keys
+
+# Minimal nvim config (optional dotfiles, safe to leave empty)
+COPY --chown=${USERNAME}:${USERNAME} config/nvim /home/${USERNAME}/.config/nvim
+
+# --- Agent CLI installs ----------------------------------------------------
+# OpenCode (provider-agnostic terminal agent)
+RUN curl -fsSL https://opencode.ai/install | bash
+
+# Claude Code (uncomment if you want it instead of / alongside OpenCode)
+# RUN sudo npm install -g @anthropic-ai/claude-code
+
+# Aider (uncomment if wanted)
+# RUN pip install --user --break-system-packages aider-chat
+
+ENV PATH="/home/${USERNAME}/.opencode/bin:/home/${USERNAME}/.local/bin:${PATH}"
+
+USER root
+EXPOSE 22
+CMD ["/usr/sbin/sshd", "-D", "-e"]

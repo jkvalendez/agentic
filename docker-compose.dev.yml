@@ -1,0 +1,73 @@
+services:
+  # --- Egress allowlist proxy ------------------------------------------
+  # The agent container has NO direct internet access. All outbound
+  # traffic must go through this proxy, which only permits the domains
+  # listed in config/proxy/allowed-domains.txt (your LLM provider(s)).
+  egress-proxy:
+    image: kalaksi/tinyproxy:latest
+    container_name: agent-dev-proxy
+    restart: unless-stopped
+    volumes:
+      - ./config/proxy/tinyproxy.conf:/etc/tinyproxy/tinyproxy.conf:ro
+      - ./config/proxy/allowed-domains.txt:/etc/tinyproxy/allowed-domains.txt:ro
+    networks:
+      - internal
+      - external
+
+  agent-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: agent-dev
+    restart: unless-stopped
+    depends_on:
+      - egress-proxy
+
+    # ONLY the source code is exposed to the container.
+    # Secrets/.env are intentionally NOT bind-mounted -- see environment: below.
+    volumes:
+      - ${SOURCE_DIR:-./my-project}:/home/coder/workspace
+
+    working_dir: /home/coder/workspace
+
+    ports:
+      - "2222:22"   # ssh coder@localhost -p 2222  /  VSCodium Remote-SSH target
+
+    # Secrets are injected as env vars from your HOST .env file.
+    # They never exist as a file inside /home/coder/workspace, so the
+    # agent can't casually open and read them.
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      # Your APP's runtime secrets go here too, if the agent needs to run
+      # the app -- NOT as a committed .env file inside the workspace.
+      - APP_DATABASE_URL=${APP_DATABASE_URL:-}
+
+      # Force all HTTP(S) traffic through the allowlisted proxy.
+      - HTTP_PROXY=http://egress-proxy:8888
+      - HTTPS_PROXY=http://egress-proxy:8888
+      - NO_PROXY=localhost,127.0.0.1
+
+    networks:
+      - internal   # NOTE: no "external" network here -> no direct internet
+
+    # --- Hardening -------------------------------------------------------
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+
+    # read_only: true
+
+networks:
+  internal:
+    internal: true    # this network has NO route to the outside world
+  external:            # only egress-proxy touches this one

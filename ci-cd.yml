@@ -1,0 +1,106 @@
+name: ci-cd
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+jobs:
+  # ----------------------------------------------------------------------
+  # 1. Secret scan -- catches anything the agent or you accidentally
+  #    committed, before it ever reaches a build or a log.
+  # ----------------------------------------------------------------------
+  secret-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ----------------------------------------------------------------------
+  # 2. Lint + test -- runs in a throwaway container, not on the runner
+  #    directly, so the test environment matches production's base image.
+  # ----------------------------------------------------------------------
+  test:
+    needs: secret-scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+
+  # ----------------------------------------------------------------------
+  # 3. Build the PRODUCTION image (multi-stage Dockerfile.prod) and push
+  #    it to the registry, tagged with the commit SHA. Nothing here uses
+  #    Dockerfile.dev -- the agent/SSH/nvim tooling never enters this path.
+  # ----------------------------------------------------------------------
+  build-and-push:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: tag
+        run: echo "tag=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.prod
+          push: true
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ steps.tag.outputs.tag }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          # If a build-time-only secret is ever needed (e.g. a private
+          # registry token), use BuildKit secret mounts -- NEVER plain
+          # ARG/ENV, since those persist in image layer history:
+          #   secrets: |
+          #     "npm_token=${{ secrets.NPM_TOKEN }}"
+          # and in the Dockerfile: RUN --mount=type=secret,id=npm_token ...
+
+  # ----------------------------------------------------------------------
+  # 4. Deploy: SSH into the VPS and tell it to pull + run the new tag.
+  #    The VPS's docker-compose.yml never rebuilds anything -- it only
+  #    pulls the artifact CI already built and verified.
+  # ----------------------------------------------------------------------
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.VPS_DEPLOY_KEY }}
+
+      - name: Deploy to VPS
+        env:
+          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
+        run: |
+          ssh -o StrictHostKeyChecking=no deploy@${{ secrets.VPS_HOST }} \
+            "cd /opt/my-project && \
+             export IMAGE_TAG=${IMAGE_TAG} && \
+             docker compose pull && \
+             docker compose up -d --remove-orphans"
