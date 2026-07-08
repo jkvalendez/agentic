@@ -69,5 +69,5 @@ services:
 
 networks:
   internal:
-    internal: true    # this network has NO route to the outside world
+    #internal: true    # this network has NO route to the outside world
   external:            # only egress-proxy touches this one
