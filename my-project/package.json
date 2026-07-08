@@ -1,0 +1,11 @@
+{
+  "name": "sample-project",
+  "version": "1.0.0",
+  "description": "Minimal test project for the agentic dev sandbox -- no external dependencies.",
+  "type": "module",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "test": "node --test test/*.test.js"
+  }
+}
